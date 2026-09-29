@@ -1,25 +1,19 @@
+import Card from '@/Components/Card';
+import PageHeader from '@/Components/PageHeader';
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
-import { Head } from '@inertiajs/react';
+import { Head, usePage } from '@inertiajs/react';
 
 export default function Dashboard() {
+    const user = usePage().props.auth.user;
+
     return (
-        <AuthenticatedLayout
-            header={
-                <h2 className="text-xl font-semibold leading-tight text-gray-800">
-                    Dashboard
-                </h2>
-            }
-        >
+        <AuthenticatedLayout header={<PageHeader title="Dashboard" subtitle={`Welcome, ${user.name}.`} />}>
             <Head title="Dashboard" />
 
-            <div className="py-12">
-                <div className="mx-auto max-w-7xl sm:px-6 lg:px-8">
-                    <div className="overflow-hidden bg-white shadow-sm sm:rounded-lg">
-                        <div className="p-6 text-gray-900">
-                            You're logged in!
-                        </div>
-                    </div>
-                </div>
+            <div className="p-4 sm:p-6 lg:p-8">
+                <Card className="p-6 text-sm text-gray-600 dark:text-gray-400">
+                    The stock request dashboard will appear here once that module is built in v2.
+                </Card>
             </div>
         </AuthenticatedLayout>
     );

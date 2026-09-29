@@ -114,6 +114,34 @@ return [
             // 'trust_server_certificate' => env('DB_TRUST_SERVER_CERTIFICATE', 'false'),
         ],
 
+        // Read-only product catalogue (PMC-CATALOGUE) that stock request items are picked from.
+        'catalogue' => [
+            'driver' => 'sqlsrv',
+            'url' => env('DB_CATALOGUE_URL'),
+            'host' => env('DB_CATALOGUE_HOST', env('DB_HOST', 'localhost')),
+            'port' => env('DB_CATALOGUE_PORT', env('DB_PORT', '1433')),
+            'database' => env('DB_CATALOGUE_DATABASE', 'PMC-CATALOGUE'),
+            'username' => env('DB_CATALOGUE_USERNAME', env('DB_USERNAME', 'root')),
+            'password' => env('DB_CATALOGUE_PASSWORD', env('DB_PASSWORD', '')),
+            'charset' => env('DB_CHARSET', 'utf8'),
+            'prefix' => '',
+            'prefix_indexes' => true,
+        ],
+
+        // Read-only HR employee master used to look up employees when creating users.
+        'hris' => [
+            'driver' => 'sqlsrv',
+            'url' => env('DB_HRIS_URL'),
+            'host' => env('DB_HRIS_HOST', env('DB_HOST', 'localhost')),
+            'port' => env('DB_HRIS_PORT', env('DB_PORT', '1433')),
+            'database' => env('DB_HRIS_DATABASE', 'SyncHRIS'),
+            'username' => env('DB_HRIS_USERNAME', env('DB_USERNAME', 'root')),
+            'password' => env('DB_HRIS_PASSWORD', env('DB_PASSWORD', '')),
+            'charset' => env('DB_CHARSET', 'utf8'),
+            'prefix' => '',
+            'prefix_indexes' => true,
+        ],
+
     ],
 
     /*

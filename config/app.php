@@ -56,6 +56,18 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | IT Support Email
+    |--------------------------------------------------------------------------
+    |
+    | Forgot-password requests are emailed to this address so IT can reset
+    | the user's password, same as the legacy OSTR app.
+    |
+    */
+
+    'it_email' => env('IT_EMAIL'),
+
+    /*
+    |--------------------------------------------------------------------------
     | Application Timezone
     |--------------------------------------------------------------------------
     |
@@ -65,7 +77,8 @@ return [
     |
     */
 
-    'timezone' => 'UTC',
+    // Same as legacy: the shared database stores local Philippine time.
+    'timezone' => env('APP_TIMEZONE', 'Asia/Manila'),
 
     /*
     |--------------------------------------------------------------------------

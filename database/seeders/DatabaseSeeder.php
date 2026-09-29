@@ -12,14 +12,14 @@ class DatabaseSeeder extends Seeder
 
     /**
      * Seed the application's database.
+     *
+     * Only meant for a fresh database. The legacy PMC-OSTR copy already has users.
      */
     public function run(): void
     {
-        // User::factory(10)->create();
-
-        User::factory()->create([
-            'name' => 'Test User',
-            'email' => 'test@example.com',
+        User::factory()->admin()->create([
+            'name' => 'Administrator',
+            'username' => 'ADMIN',
         ]);
     }
 }
