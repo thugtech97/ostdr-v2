@@ -313,13 +313,30 @@ class StockRequestTest extends TestCase
         $this->assertSame('Pending', $request->refresh()->status);
     }
 
-    public function test_submitted_or_received_requests_can_not_be_changed(): void
+    public function test_approved_or_received_requests_can_not_be_changed(): void
     {
-        $submitted = $this->makeRequest(['status' => 'Submitted']);
+        $approved = $this->makeRequest(['status' => 'FULLY APPROVED']);
         $received = $this->makeRequest(['status' => 'FULLY APPROVED', 'isReceived' => true]);
 
-        $this->actingAs($this->requestor)->get("/stockrequests/edit/{$submitted->id}")->assertForbidden();
+        $this->actingAs($this->requestor)->get("/stockrequests/edit/{$approved->id}")->assertForbidden();
         $this->actingAs($this->requestor)->put("/stockrequests/{$received->id}", $this->payload())->assertForbidden();
+        $this->actingAs($this->requestor)->delete("/stockrequests/{$approved->id}")->assertForbidden();
+    }
+
+    public function test_submitted_requests_stay_editable_but_not_deletable_or_resubmittable(): void
+    {
+        $submitted = $this->makeRequest(['status' => 'Submitted', 'WFS_connection' => 1]);
+
+        $this->actingAs($this->requestor)->get("/stockrequests/edit/{$submitted->id}")->assertOk();
+        $this->actingAs($this->requestor)->put("/stockrequests/{$submitted->id}", $this->payload())->assertSessionHas('success');
+
+        // Saving keeps it Submitted and does not queue it for WFS again.
+        $submitted->refresh();
+        $this->assertSame('Submitted', $submitted->status);
+        $this->assertSame('1', (string) $submitted->WFS_connection);
+
+        $this->actingAs($this->requestor)->put("/stockrequests/{$submitted->id}", $this->payload(['submit' => true]))
+            ->assertSessionHas('error', 'This request has already been submitted.');
         $this->actingAs($this->requestor)->delete("/stockrequests/{$submitted->id}")->assertForbidden();
     }
 

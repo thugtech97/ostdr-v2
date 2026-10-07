@@ -43,6 +43,8 @@ export default function RequestForm({ stockRequest = null, items = [], origins, 
     const [line, setLine] = useState(EMPTY_LINE);
     const [lineError, setLineError] = useState(null);
     const [confirmSubmit, setConfirmSubmit] = useState(false);
+    // A submitted request stays editable but must not be sent to WFS a second time (legacy).
+    const submitted = (stockRequest?.status ?? '').toLowerCase() === 'submitted';
 
     const serverErrors = Object.values(errors);
 
@@ -306,7 +308,7 @@ export default function RequestForm({ stockRequest = null, items = [], origins, 
                         </a>
                     )}
                     <PrimaryButton disabled={processing}>Save</PrimaryButton>
-                    {isEdit && (
+                    {isEdit && !submitted && (
                         <button
                             type="button"
                             onClick={() => setConfirmSubmit(true)}
@@ -320,11 +322,11 @@ export default function RequestForm({ stockRequest = null, items = [], origins, 
                 </div>
             </div>
 
-            {isEdit && (
+            {isEdit && !submitted && (
                 <ConfirmDialog
                     show={confirmSubmit}
                     title="Submit request?"
-                    message={`Submit ${stockRequest.transaction_no} for approval? Your changes are saved first, and you will not be able to edit it afterwards.`}
+                    message={`Submit ${stockRequest.transaction_no} for approval? Your changes are saved first.`}
                     confirmLabel="Submit"
                     processing={processing}
                     onConfirm={submitRequest}

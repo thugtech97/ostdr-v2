@@ -48,4 +48,33 @@ class RequestedItem extends Model
     {
         $query->whereNull('requested_items.deleted_at');
     }
+
+    /**
+     * Adds issued_qty, the legacy appended attribute, as a column.
+     */
+    public function scopeWithIssued(Builder $query): void
+    {
+        if ($query->getQuery()->columns === null) {
+            $query->select('requested_items.*');
+        }
+
+        $query->selectRaw(self::ISSUED_QTY_SQL.' AS issued_qty');
+    }
+
+    /**
+     * How legacy reads an item on the receiver/records views.
+     *
+     * @return array{label: string, tone: string}
+     */
+    public function serveStatus(): array
+    {
+        $issued = (float) ($this->issued_qty ?? 0);
+
+        return match (true) {
+            (int) $this->isClosed === 1 => ['label' => '(CLOSED) '.$this->isClosed_remarks, 'tone' => 'danger'],
+            $issued == (float) $this->requested_qty => ['label' => 'COMPLETED', 'tone' => 'success'],
+            $issued == 0.0 => ['label' => 'UNSERVED', 'tone' => 'warning'],
+            default => ['label' => 'PARTIALLY SERVED', 'tone' => 'info'],
+        };
+    }
 }

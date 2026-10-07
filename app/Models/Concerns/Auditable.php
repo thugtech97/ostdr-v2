@@ -31,6 +31,10 @@ trait Auditable
 
             $model->writeAudit('updated', $old, $model->only($changed));
         });
+
+        static::deleted(function ($model) {
+            $model->writeAudit('deleted', $model->only($model->auditInclude), []);
+        });
     }
 
     protected function writeAudit(string $event, array $old, array $new): void

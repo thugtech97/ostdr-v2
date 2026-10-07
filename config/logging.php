@@ -52,6 +52,13 @@ return [
 
     'channels' => [
 
+        // The legacy `log` table read by Application Error Logs (add "database" to LOG_STACK).
+        'database' => [
+            'driver' => 'custom',
+            'via' => App\Logging\CreateDatabaseLogger::class,
+            'level' => env('LOG_DATABASE_LEVEL', 'error'),
+        ],
+
         'stack' => [
             'driver' => 'stack',
             'channels' => explode(',', (string) env('LOG_STACK', 'single')),

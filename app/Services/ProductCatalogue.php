@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Database\Query\Builder;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
@@ -52,6 +53,79 @@ class ProductCatalogue
             ->get(['code', 'name', 'uom', 'oem'])
             ->map(fn ($row) => (object) $this->clean($row))
             ->keyBy('code');
+    }
+
+    /**
+     * The MCD Records "Catalogue Items" list.
+     *
+     * @param  array{search?: ?string, sort?: ?string, direction?: ?string, per_page?: ?int}  $filters
+     */
+    public function browse(array $filters): LengthAwarePaginator
+    {
+        $query = $this->published();
+
+        if (! empty($filters['search'])) {
+            $like = '%'.$filters['search'].'%';
+            $query->where(fn ($query) => $query->where('code', 'like', $like)->orWhere('name', 'like', $like)
+                ->orWhere('uom', 'like', $like)->orWhere('oem', 'like', $like));
+        }
+
+        $sort = $filters['sort'] ?? 'code';
+        $query->orderBy($sort, $filters['direction'] ?? 'asc');
+        if ($sort !== 'id') {
+            $query->orderBy('id');
+        }
+
+        return $query->select(['id', 'code', 'name', 'uom', 'oem'])
+            ->paginate($filters['per_page'] ?? 10)
+            ->through(fn ($row) => ['id' => (string) $row->id, ...$this->clean($row)]);
+    }
+
+    /**
+     * Update or add catalogue items from the MCD stock list, the legacy "Update Items" upload:
+     * existing codes get the new description/OEM/UoM, unknown codes are published as new items.
+     *
+     * @param  list<array{code: string, description: ?string, oem: ?string, uom: ?string}>  $rows
+     * @return array{updated: int, created: int}
+     */
+    public function importStockList(array $rows, int $userId): array
+    {
+        $counts = ['updated' => 0, 'created' => 0];
+
+        DB::connection('catalogue')->transaction(function () use ($rows, $userId, &$counts) {
+            $products = DB::connection('catalogue')->table('products');
+
+            foreach ($rows as $row) {
+                $values = [
+                    'description' => $row['description'],
+                    'oem' => $row['oem'],
+                    'uom' => $row['uom'],
+                    'name' => $row['description'],
+                ];
+
+                if ((clone $products)->where('code', $row['code'])->exists()) {
+                    (clone $products)->where('code', $row['code'])->update([...$values, 'updated_at' => now()]);
+                    $counts['updated']++;
+                } else {
+                    (clone $products)->insert([
+                        ...$values,
+                        // Both columns are NOT NULL in the catalogue.
+                        'name' => $row['description'] ?: $row['code'],
+                        'uom' => $row['uom'] ?: 'PC',
+                        'code' => $row['code'],
+                        'category_id' => 29,
+                        'slug' => 'new-product',
+                        'status' => 'PUBLISHED',
+                        'created_by' => $userId,
+                        'created_at' => now(),
+                        'updated_at' => now(),
+                    ]);
+                    $counts['created']++;
+                }
+            }
+        });
+
+        return $counts;
     }
 
     protected function published(): Builder

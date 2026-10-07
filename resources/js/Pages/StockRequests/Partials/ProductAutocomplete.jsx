@@ -1,6 +1,29 @@
 import TextInput from '@/Components/TextInput';
 import axios from 'axios';
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
+
+const MENU_MAX_HEIGHT = 288; // max-h-72
+const MENU_MIN_WIDTH = 320; // 20rem
+
+/**
+ * Where to draw the menu: under the input, or above it when there is no room below.
+ * Fixed to the viewport so cards with overflow-hidden cannot clip it.
+ */
+function menuPosition(input) {
+    const rect = input.getBoundingClientRect();
+    const below = window.innerHeight - rect.bottom;
+    const up = below < MENU_MAX_HEIGHT + 8 && rect.top > below;
+    const width = Math.max(rect.width, MENU_MIN_WIDTH);
+
+    return {
+        position: 'fixed',
+        left: Math.max(8, Math.min(rect.left, window.innerWidth - width - 8)),
+        width,
+        maxHeight: Math.min(MENU_MAX_HEIGHT, (up ? rect.top : below) - 12),
+        ...(up ? { bottom: window.innerHeight - rect.top + 4 } : { top: rect.bottom + 4 }),
+    };
+}
 
 /**
  * Catalogue lookup by stock code or item name (starts-with, like legacy). Calls onSelect(product).
@@ -10,7 +33,9 @@ export default function ProductAutocomplete({ field, value, onChange, onSelect, 
     const [open, setOpen] = useState(false);
     const [loading, setLoading] = useState(false);
     const [highlight, setHighlight] = useState(0);
+    const [style, setStyle] = useState(null);
     const typed = useRef(false);
+    const wrapper = useRef(null);
 
     useEffect(() => {
         const term = value.trim();
@@ -46,6 +71,25 @@ export default function ProductAutocomplete({ field, value, onChange, onSelect, 
         };
     }, [value, field]);
 
+    const showMenu = open && (results.length > 0 || (!loading && typed.current && value.trim() !== ''));
+
+    // Follow the input while the menu is open (page scroll, table scroll, resize).
+    useLayoutEffect(() => {
+        if (!showMenu || !wrapper.current) {
+            return;
+        }
+
+        const place = () => setStyle(menuPosition(wrapper.current));
+        place();
+        window.addEventListener('scroll', place, true);
+        window.addEventListener('resize', place);
+
+        return () => {
+            window.removeEventListener('scroll', place, true);
+            window.removeEventListener('resize', place);
+        };
+    }, [showMenu, results.length]);
+
     const pick = (product) => {
         typed.current = false;
         setOpen(false);
@@ -72,7 +116,7 @@ export default function ProductAutocomplete({ field, value, onChange, onSelect, 
     };
 
     return (
-        <div className={'relative ' + className}>
+        <div ref={wrapper} className={'relative ' + className}>
             <TextInput
                 id={id}
                 value={value}
@@ -92,36 +136,43 @@ export default function ProductAutocomplete({ field, value, onChange, onSelect, 
             />
             {loading && <span className="absolute right-3 top-2.5 text-xs text-gray-400">…</span>}
 
-            {open && results.length > 0 && (
-                <ul
-                    role="listbox"
-                    className="absolute z-30 mt-1 max-h-72 w-full min-w-[20rem] overflow-y-auto rounded-md bg-white py-1 text-sm shadow-lg ring-1 ring-gray-200 dark:bg-gray-800 dark:ring-gray-700"
-                >
-                    {results.map((product, index) => (
-                        <li key={product.code} role="option" aria-selected={index === highlight}>
-                            <button
-                                type="button"
-                                onMouseDown={(e) => e.preventDefault()}
-                                onClick={() => pick(product)}
-                                className={
-                                    'block w-full px-3 py-2 text-left ' +
-                                    (index === highlight ? 'bg-brand-50 dark:bg-gray-700' : 'hover:bg-gray-100 dark:hover:bg-gray-700')
-                                }
-                            >
-                                <span className="font-mono text-xs text-gray-500 dark:text-gray-400">{product.code}</span>{' '}
-                                <span className="text-gray-900 dark:text-gray-100">{product.name}</span>
-                                <span className="ml-1 text-xs text-gray-500 dark:text-gray-400">({product.uom})</span>
-                            </button>
-                        </li>
-                    ))}
-                </ul>
-            )}
-
-            {open && !loading && typed.current && value.trim() !== '' && results.length === 0 && (
-                <p className="absolute z-30 mt-1 w-full rounded-md bg-white px-3 py-2 text-sm text-gray-500 shadow ring-1 ring-gray-200 dark:bg-gray-800 dark:text-gray-400 dark:ring-gray-700">
-                    No items found.
-                </p>
-            )}
+            {showMenu &&
+                style &&
+                createPortal(
+                    results.length > 0 ? (
+                        <ul
+                            role="listbox"
+                            style={style}
+                            className="z-[60] overflow-y-auto rounded-md bg-white py-1 text-sm shadow-lg ring-1 ring-gray-200 dark:bg-gray-800 dark:ring-gray-700"
+                        >
+                            {results.map((product, index) => (
+                                <li key={product.code} role="option" aria-selected={index === highlight}>
+                                    <button
+                                        type="button"
+                                        onMouseDown={(e) => e.preventDefault()}
+                                        onClick={() => pick(product)}
+                                        className={
+                                            'block w-full px-3 py-2 text-left ' +
+                                            (index === highlight ? 'bg-brand-50 dark:bg-gray-700' : 'hover:bg-gray-100 dark:hover:bg-gray-700')
+                                        }
+                                    >
+                                        <span className="font-mono text-xs text-gray-500 dark:text-gray-400">{product.code}</span>{' '}
+                                        <span className="text-gray-900 dark:text-gray-100">{product.name}</span>
+                                        <span className="ml-1 text-xs text-gray-500 dark:text-gray-400">({product.uom})</span>
+                                    </button>
+                                </li>
+                            ))}
+                        </ul>
+                    ) : (
+                        <p
+                            style={style}
+                            className="z-[60] rounded-md bg-white px-3 py-2 text-sm text-gray-500 shadow ring-1 ring-gray-200 dark:bg-gray-800 dark:text-gray-400 dark:ring-gray-700"
+                        >
+                            No items found.
+                        </p>
+                    ),
+                    document.body,
+                )}
         </div>
     );
 }

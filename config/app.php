@@ -136,4 +136,10 @@ return [
         'store' => env('APP_MAINTENANCE_STORE', 'database'),
     ],
 
+    /*
+    | Bypass path while the app is down (visit /{secret}). Application Maintenance
+    | makes a random one when this is empty; a scheduled shutdown uses this one only.
+    */
+    'maintenance_secret' => env('MAINTENANCE_SECRET'),
+
 ];

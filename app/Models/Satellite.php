@@ -2,10 +2,13 @@
 
 namespace App\Models;
 
+use App\Models\Concerns\Auditable;
 use Illuminate\Database\Eloquent\Model;
 
 class Satellite extends Model
 {
+    use Auditable;
+
     /**
      * Departments the legacy user form always offered, on top of the satellites table.
      *
@@ -19,6 +22,17 @@ class Satellite extends Model
      * @var list<string>
      */
     protected $fillable = [
+        'name',
+        'description',
+        'active',
+    ];
+
+    /**
+     * The attributes written to the audit log.
+     *
+     * @var list<string>
+     */
+    protected array $auditInclude = [
         'name',
         'description',
         'active',

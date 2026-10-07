@@ -70,6 +70,32 @@ class StockRequest extends Model
     )";
 
     /**
+     * No live, unclosed item is still missing a batch number (legacy `all_batched`).
+     */
+    public const ALL_BATCHED_SQL = "(
+        NOT EXISTS (
+            SELECT 1 FROM requested_items ri
+            WHERE ri.transaction_no = stock_requests.transaction_no
+              AND ri.deleted_at IS NULL
+              AND ri.isClosed IS NULL
+              AND ri.batchno IS NULL
+        )
+    )";
+
+    /**
+     * At least one live item has been fully issued (legacy `has_issued`).
+     */
+    public const HAS_ISSUED_SQL = "(
+        EXISTS (
+            SELECT 1 FROM issued_items ii
+            JOIN requested_items ri ON ri.id = ii.item_id
+            WHERE ri.transaction_no = stock_requests.transaction_no
+              AND ri.deleted_at IS NULL
+              AND ii.balance = 0
+        )
+    )";
+
+    /**
      * The attributes that are mass assignable.
      *
      * @var list<string>
@@ -141,12 +167,26 @@ class StockRequest extends Model
     }
 
     /**
-     * A requestor may still change the request: nothing downstream has acted on it yet.
+     * A requestor may still change the request. Legacy keeps a submitted request editable
+     * (it stays Submitted); only approval, completion or receipt locks it.
      */
     public function isEditable(): bool
     {
         return ! $this->isReceived
-            && ! in_array(strtolower((string) $this->status), ['fully approved', 'completed', 'submitted'], true);
+            && ! in_array(strtolower((string) $this->status), ['fully approved', 'completed'], true);
+    }
+
+    /**
+     * Legacy also stops deleting once the request has been submitted.
+     */
+    public function isDeletable(): bool
+    {
+        return $this->isEditable() && ! $this->isSubmitted();
+    }
+
+    public function isSubmitted(): bool
+    {
+        return strtolower((string) $this->status) === 'submitted';
     }
 
     public function isPending(): bool
@@ -174,6 +214,53 @@ class StockRequest extends Model
             $completed => ['label' => 'Completed', 'variant' => 'success'],
             $status === 'submitted' && ! $this->isReceived => ['label' => 'Submitted', 'variant' => 'success'],
             $status === 'hold' => ['label' => 'Hold', 'variant' => 'primary'],
+            default => ['label' => 'Pending', 'variant' => 'muted'],
+        };
+    }
+
+    /**
+     * The badge the MCD Records list (no note) and the Stock Transfer Requests report
+     * (with the served note) show. Unlike statusBadge() these never say "Closed".
+     * Needs withProgress().
+     *
+     * @return array{label: string, variant: string, note?: string, alert?: bool}
+     */
+    public function recordsBadge(bool $withNote = false): array
+    {
+        $status = strtolower((string) $this->status);
+        $completed = (int) $this->is_completed === 1;
+        $unserved = (int) $this->is_unserved === 1;
+
+        return match (true) {
+            $status === 'fully approved' && ! $this->isReceived => ['label' => 'Approved', 'variant' => 'warning'],
+            $status === 'cancelled' && ! $this->isReceived => ['label' => 'Cancelled', 'variant' => 'danger'],
+            $this->isReceived && ! $completed => $withNote
+                ? ['label' => 'Received', 'variant' => 'info', 'note' => $unserved ? 'Unserved' : 'Partially Served', 'alert' => $unserved]
+                : ['label' => 'Received', 'variant' => 'info'],
+            $completed && (bool) $this->isReceived => ['label' => 'Completed', 'variant' => 'success'],
+            $status === 'submitted' && ! $this->isReceived => ['label' => 'Submitted', 'variant' => 'success'],
+            $status === 'hold' => ['label' => 'Hold', 'variant' => 'primary'],
+            default => ['label' => 'Pending', 'variant' => 'muted'],
+        };
+    }
+
+    /**
+     * The badge the receiver dashboards show (legacy MCD statusOf). Needs withProgress().
+     *
+     * @return array{label: string, variant: string, note?: string, alert?: bool}
+     */
+    public function receivingBadge(): array
+    {
+        $status = strtolower((string) $this->status);
+        $owing = (int) $this->has_unserved === 1;
+
+        return match (true) {
+            $status === 'fully approved' && ! $this->isReceived => ['label' => 'Approved', 'variant' => 'warning'],
+            $status === 'cancelled' && ! $this->isReceived => ['label' => 'Cancelled', 'variant' => 'danger'],
+            // Requests still owing stock stay on the dashboard even once leftovers are closed.
+            $this->isReceived && $owing => ['label' => 'Received', 'variant' => 'info', 'note' => (int) $this->is_unserved === 1 ? 'Unserved' : 'Partially Served', 'alert' => true],
+            (bool) $this->isReceived => ['label' => 'Received', 'variant' => 'info'],
+            $status === 'completed' => ['label' => 'Completed', 'variant' => 'success'],
             default => ['label' => 'Pending', 'variant' => 'muted'],
         };
     }

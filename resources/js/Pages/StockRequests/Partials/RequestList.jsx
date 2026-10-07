@@ -164,7 +164,7 @@ export default function RequestList({ requests, filters, can, routeName, unsaved
                                                     <PencilIcon />
                                                 </IconButton>
                                             )}
-                                            {can.delete && row.editable && (
+                                            {can.delete && row.deletable && (
                                                 <IconButton label="Delete request" tone="danger" onClick={() => setPending({ action: 'delete', row })}>
                                                     <TrashIcon />
                                                 </IconButton>

@@ -26,4 +26,23 @@ class AuditService
             'user_agent' => $request->header('user-agent'),
         ]);
     }
+
+    /**
+     * Legacy logs a "Generate Report" entry every time a report is viewed.
+     */
+    public function report(Request $request, string $reportName): Audit
+    {
+        return Audit::create([
+            'user_type' => 'App\User',
+            'user_id' => $request->user()?->id ?? 1,
+            'event' => 'Generate Report',
+            'auditable_type' => '',
+            'auditable_id' => 0,
+            'old_values' => [],
+            'new_values' => ['report name' => $reportName],
+            'url' => $request->fullUrl(),
+            'ip_address' => $request->ip(),
+            'user_agent' => $request->header('user-agent'),
+        ]);
+    }
 }

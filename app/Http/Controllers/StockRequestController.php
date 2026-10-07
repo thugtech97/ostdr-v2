@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Http\Controllers\Concerns\FiltersStockRequests;
 use App\Http\Requests\StockRequestForm;
 use App\Models\RequestedItem;
 use App\Models\StockRequest;
@@ -25,6 +26,8 @@ use Symfony\Component\HttpFoundation\StreamedResponse;
  */
 class StockRequestController extends Controller
 {
+    use FiltersStockRequests;
+
     public const PAGE_MANAGE = 'Manage Stock Request';
 
     public const PAGE_REQUEST = 'Stock Request';
@@ -61,7 +64,7 @@ class StockRequestController extends Controller
 
     public function index(Request $request): Response
     {
-        $filters = $this->listFilters($request);
+        $filters = $this->listFilters($request, self::SORTABLE);
 
         $requests = $this->ownRequests($request, saved: true)
             ->stillOpen()
@@ -87,7 +90,7 @@ class StockRequestController extends Controller
      */
     public function export(Request $request): StreamedResponse
     {
-        $filters = $this->listFilters($request);
+        $filters = $this->listFilters($request, self::SORTABLE);
         $unsaved = $request->boolean('unsaved');
 
         abort_unless($this->can($request, $unsaved ? self::PAGE_UNSAVED : self::PAGE_MANAGE, 'view'), HttpResponse::HTTP_FORBIDDEN);
@@ -105,7 +108,7 @@ class StockRequestController extends Controller
      */
     public function unsaved(Request $request): Response
     {
-        $filters = $this->listFilters($request);
+        $filters = $this->listFilters($request, self::SORTABLE);
 
         $requests = $this->ownRequests($request, saved: false)
             ->tap(fn ($query) => $this->applyFilters($query, $filters, searchItems: false))
@@ -205,18 +208,30 @@ class StockRequestController extends Controller
         $this->ensureOwnEditable($form, $stockRequest);
 
         $submit = $form->boolean('submit');
+        $alreadySubmitted = $stockRequest->isSubmitted();
 
-        DB::transaction(function () use ($form, $stockRequest, $submit) {
-            $stockRequest->update([
+        if ($submit && $alreadySubmitted) {
+            return back()->with('error', 'This request has already been submitted.');
+        }
+
+        DB::transaction(function () use ($form, $stockRequest, $submit, $alreadySubmitted) {
+            $fields = [
                 'date_needed' => $form->validated('date_needed'),
                 'remarks' => $form->validated('remarks'),
                 'updated_by' => $form->user()->username,
-                'status' => $submit ? StockRequest::STATUS_SUBMITTED : StockRequest::STATUS_PENDING,
                 'isSaved' => true,
-                'WFS_connection' => 0,
                 'origin' => $form->validated('origin'),
                 'requestor' => $form->validated('requestor'),
-            ]);
+            ];
+
+            // Editing a submitted request must not pull it back to Pending: that would bring
+            // back the Submit button and send it to WFS a second time (legacy rule).
+            if (! $alreadySubmitted) {
+                $fields['status'] = $submit ? StockRequest::STATUS_SUBMITTED : StockRequest::STATUS_PENDING;
+                $fields['WFS_connection'] = 0;
+            }
+
+            $stockRequest->update($fields);
 
             $this->replaceItems($stockRequest, $form->items(), $form->user()->username);
         });
@@ -260,7 +275,8 @@ class StockRequestController extends Controller
 
     public function destroy(Request $request, StockRequest $stockRequest): RedirectResponse
     {
-        $this->ensureOwnEditable($request, $stockRequest);
+        $this->ensureOwn($request, $stockRequest);
+        abort_unless($stockRequest->isDeletable(), HttpResponse::HTTP_FORBIDDEN, 'This request can no longer be deleted.');
 
         $page = $stockRequest->isSaved ? self::PAGE_MANAGE : self::PAGE_UNSAVED;
         abort_unless($this->can($request, $page, 'delete'), HttpResponse::HTTP_FORBIDDEN);
@@ -306,21 +322,6 @@ class StockRequestController extends Controller
         return response()->json($catalogue->search($validated['field'], $validated['q']));
     }
 
-    /**
-     * @return array<string, mixed>
-     */
-    private function listFilters(Request $request): array
-    {
-        return $request->validate([
-            'search' => ['nullable', 'string', 'max:100'],
-            'date_from' => ['nullable', 'date'],
-            'date_to' => ['nullable', 'date'],
-            'sort' => ['nullable', Rule::in(self::SORTABLE)],
-            'direction' => ['nullable', Rule::in(['asc', 'desc'])],
-            'per_page' => ['nullable', 'integer', Rule::in([10, 20, 50])],
-        ]);
-    }
-
     private function ownRequests(Request $request, bool $saved): Builder
     {
         return StockRequest::query()
@@ -328,48 +329,6 @@ class StockRequestController extends Controller
             ->active()
             ->where('isSaved', $saved)
             ->where('created_by', $request->user()->username);
-    }
-
-    private function applyFilters(Builder $query, array $filters, bool $searchItems): void
-    {
-        // Both date bounds are optional and independent, on the created date (legacy).
-        if (! empty($filters['date_from'])) {
-            $query->where('stock_requests.created_at', '>=', $filters['date_from'].' 00:00:00');
-        }
-        if (! empty($filters['date_to'])) {
-            $query->where('stock_requests.created_at', '<=', $filters['date_to'].' 23:59:59');
-        }
-
-        if (! empty($filters['search'])) {
-            $like = '%'.$filters['search'].'%';
-
-            $query->where(function ($query) use ($like, $searchItems) {
-                foreach (['transaction_no', 'origin', 'dept', 'cost_code', 'status'] as $column) {
-                    $query->orWhere("stock_requests.{$column}", 'like', $like);
-                }
-                // Dates need a cast before LIKE on SQL Server.
-                $query->orWhereRaw('CAST(stock_requests.date_filed AS VARCHAR(20)) LIKE ?', [$like])
-                    ->orWhereRaw('CAST(stock_requests.date_needed AS VARCHAR(20)) LIKE ?', [$like]);
-
-                if ($searchItems) {
-                    $query->orWhereExists(function ($items) use ($like) {
-                        $items->selectRaw('1')->from('requested_items')
-                            ->whereColumn('requested_items.transaction_no', 'stock_requests.transaction_no')
-                            ->whereNull('requested_items.deleted_at')
-                            ->where(fn ($item) => $item->where('requested_items.description', 'like', $like)
-                                ->orWhere('requested_items.stock_code', 'like', $like));
-                    });
-                }
-            });
-        }
-
-        $sort = $filters['sort'] ?? 'id';
-        $query->orderBy("stock_requests.{$sort}", $filters['direction'] ?? 'desc');
-
-        // Stable paging tie-breaker. SQL Server rejects the same column twice in ORDER BY.
-        if ($sort !== 'id') {
-            $query->orderByDesc('stock_requests.id');
-        }
     }
 
     /**
@@ -420,6 +379,7 @@ class StockRequestController extends Controller
             'unserved' => (int) $row->is_unserved === 1,
             'badge' => $row->statusBadge(),
             'editable' => $row->isEditable(),
+            'deletable' => $row->isDeletable(),
             'pending' => $row->isPending(),
         ];
     }
@@ -439,29 +399,21 @@ class StockRequestController extends Controller
         ];
     }
 
-    private function cleanTime(?string $time): ?string
-    {
-        return $time ? substr($time, 0, 5) : null;
-    }
-
     private function csv(string $filename, $rows): StreamedResponse
     {
-        return response()->streamDownload(function () use ($rows) {
-            $out = fopen('php://output', 'w');
-            fwrite($out, "\xEF\xBB\xBF"); // BOM so Excel reads UTF-8
-            fputcsv($out, ['Transaction #', 'Origin', 'Date Created', 'Time', 'Department', 'Date Needed', 'Status']);
-
-            foreach ($rows as $row) {
+        return $this->csvDownload($filename, $rows, [
+            'Transaction #' => fn ($row) => $row->transaction_no,
+            'Origin' => fn ($row) => $row->origin,
+            'Date Created' => fn ($row) => $row->date_filed,
+            'Time' => fn ($row) => $this->cleanTime($row->time_filed),
+            'Department' => fn ($row) => $row->dept,
+            'Date Needed' => fn ($row) => $row->date_needed,
+            'Status' => function ($row) {
                 $badge = $row->statusBadge();
-                fputcsv($out, [
-                    $row->transaction_no, $row->origin, $row->date_filed, $this->cleanTime($row->time_filed),
-                    $row->dept, $row->date_needed,
-                    isset($badge['note']) ? "{$badge['label']} ({$badge['note']})" : $badge['label'],
-                ]);
-            }
 
-            fclose($out);
-        }, $filename, ['Content-Type' => 'text/csv; charset=UTF-8']);
+                return isset($badge['note']) ? "{$badge['label']} ({$badge['note']})" : $badge['label'];
+            },
+        ]);
     }
 
     private function can(Request $request, string $page, string $action): bool
