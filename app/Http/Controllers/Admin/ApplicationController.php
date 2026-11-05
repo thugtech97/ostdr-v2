@@ -115,7 +115,7 @@ class ApplicationController extends Controller
      */
     public function reindex(): RedirectResponse
     {
-        if (! DB::table('sys.procedures')->where('name', 'runScheduledIndexing')->exists()) {
+        if (DB::getDriverName() !== 'sqlsrv' || ! DB::table('sys.procedures')->where('name', 'runScheduledIndexing')->exists()) {
             return back()->with('error', 'The re-index procedure (runScheduledIndexing) is not installed on this database.');
         }
 

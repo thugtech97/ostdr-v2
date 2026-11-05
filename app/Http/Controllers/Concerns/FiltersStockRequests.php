@@ -47,9 +47,9 @@ trait FiltersStockRequests
                 foreach (['transaction_no', 'origin', 'dept', 'cost_code', 'status'] as $column) {
                     $query->orWhere("stock_requests.{$column}", 'like', $like);
                 }
-                // Dates need a cast before LIKE on SQL Server.
-                $query->orWhereRaw('CAST(stock_requests.date_filed AS VARCHAR(20)) LIKE ?', [$like])
-                    ->orWhereRaw('CAST(stock_requests.date_needed AS VARCHAR(20)) LIKE ?', [$like]);
+                // Dates need a cast before LIKE on SQL Server. MySQL can't cast to VARCHAR, so use CHAR.
+                $query->orWhereRaw('CAST(stock_requests.date_filed AS CHAR(20)) LIKE ?', [$like])
+                    ->orWhereRaw('CAST(stock_requests.date_needed AS CHAR(20)) LIKE ?', [$like]);
 
                 if ($searchItems) {
                     $query->orWhereExists(function ($items) use ($like) {

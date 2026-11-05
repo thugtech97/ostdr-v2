@@ -228,12 +228,14 @@ const NAVIGATION = [
 ];
 
 function Brand() {
+    const { logoUrl } = usePage().props;
+
     return (
         <Link href={route('dashboard')} className="flex items-center gap-3">
             {/* The logo has navy artwork, so it sits on a white chip in dark mode. */}
             <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg dark:bg-white dark:p-1">
                 <img
-                    src="/images/logo.svg"
+                    src={logoUrl}
                     alt="Philsaga Mining Corporation"
                     className="h-full w-full object-contain"
                 />

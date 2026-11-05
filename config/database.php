@@ -116,7 +116,8 @@ return [
 
         // Read-only product catalogue (PMC-CATALOGUE) that stock request items are picked from.
         'catalogue' => [
-            'driver' => 'sqlsrv',
+            // Set DB_CATALOGUE_DRIVER=mysql on hosts without SQL Server (the MySQL demo deployment).
+            'driver' => env('DB_CATALOGUE_DRIVER', 'sqlsrv'),
             'url' => env('DB_CATALOGUE_URL'),
             'host' => env('DB_CATALOGUE_HOST', env('DB_HOST', 'localhost')),
             'port' => env('DB_CATALOGUE_PORT', env('DB_PORT', '1433')),
@@ -124,6 +125,8 @@ return [
             'username' => env('DB_CATALOGUE_USERNAME', env('DB_USERNAME', 'root')),
             'password' => env('DB_CATALOGUE_PASSWORD', env('DB_PASSWORD', '')),
             'charset' => env('DB_CHARSET', 'utf8'),
+            'collation' => env('DB_COLLATION'),
+            'strict' => true,
             'prefix' => '',
             'prefix_indexes' => true,
         ],

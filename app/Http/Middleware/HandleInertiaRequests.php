@@ -36,6 +36,8 @@ class HandleInertiaRequests extends Middleware
 
         return [
             ...parent::share($request),
+            // A full URL, so the logo still loads when the app is hosted in a subfolder.
+            'logoUrl' => asset('images/logo.svg'),
             'auth' => [
                 'user' => $user?->only(['id', 'name', 'username', 'role', 'dept']),
                 'isAdmin' => (bool) $user?->isAdmin(),

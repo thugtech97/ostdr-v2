@@ -1,6 +1,9 @@
 import ThemeToggle from '@/Components/ThemeToggle';
+import { usePage } from '@inertiajs/react';
 
 export default function GuestLayout({ children }) {
+    const { logoUrl } = usePage().props;
+
     return (
         <div className="relative flex min-h-screen bg-white dark:bg-gray-950">
             <ThemeToggle className="absolute right-5 top-5 z-10" />
@@ -9,7 +12,7 @@ export default function GuestLayout({ children }) {
                 {/* The logo has navy artwork, so it sits on a light card in dark mode. */}
                 <div className="w-full max-w-md dark:rounded-3xl dark:bg-white dark:p-8">
                     <img
-                        src="/images/logo.svg"
+                        src={logoUrl}
                         alt="Philsaga Mining Corporation"
                         className="w-full"
                     />
@@ -30,7 +33,7 @@ export default function GuestLayout({ children }) {
                     <div className="mb-8 flex items-center gap-4 lg:hidden">
                         <div className="shrink-0 dark:rounded-xl dark:bg-white dark:p-2">
                             <img
-                                src="/images/logo.svg"
+                                src={logoUrl}
                                 alt="Philsaga Mining Corporation"
                                 className="h-16 w-auto"
                             />

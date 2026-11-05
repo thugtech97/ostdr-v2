@@ -25,8 +25,7 @@ class ProductCatalogue
         $column = $field === 'name' ? 'name' : 'code';
 
         return $this->published()
-            // SQL Server LIKE escapes wildcards by wrapping them in brackets.
-            ->where($column, 'like', str_replace(['[', '%', '_'], ['[[]', '[%]', '[_]'], $term).'%')
+            ->where($column, 'like', $this->escapeLike($term).'%')
             ->distinct()
             ->orderBy($column)
             ->limit($limit * 3)
@@ -134,7 +133,22 @@ class ProductCatalogue
             ->table('products')
             ->where('status', 'Published')
             ->whereNotNull('code')
-            ->whereRaw('ISNUMERIC(code) = 1');
+            ->whereRaw($this->onSqlServer() ? 'ISNUMERIC(code) = 1' : "TRIM(code) REGEXP '^[0-9]+$'");
+    }
+
+    /**
+     * SQL Server LIKE escapes wildcards by wrapping them in brackets; MySQL uses a backslash.
+     */
+    private function escapeLike(string $term): string
+    {
+        return $this->onSqlServer()
+            ? str_replace(['[', '%', '_'], ['[[]', '[%]', '[_]'], $term)
+            : str_replace(['\\', '%', '_'], ['\\\\', '\\%', '\\_'], $term);
+    }
+
+    private function onSqlServer(): bool
+    {
+        return DB::connection('catalogue')->getDriverName() === 'sqlsrv';
     }
 
     /**

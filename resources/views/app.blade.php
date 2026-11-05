@@ -5,7 +5,7 @@
         <meta name="viewport" content="width=device-width, initial-scale=1">
 
         <title inertia>{{ config('app.name', 'Laravel') }}</title>
-        <link rel="icon" type="image/svg+xml" href="/images/logo.svg">
+        <link rel="icon" type="image/svg+xml" href="{{ asset('images/logo.svg') }}">
 
         {{-- Apply the saved (or system) theme before first paint to avoid a light flash in dark mode. --}}
         <script>
