@@ -34,6 +34,7 @@ Route::middleware('auth')->group(function () {
         Route::get('edit/{stockRequest}', [StockRequestController::class, 'edit'])->middleware("permission:{$request},edit")->name('edit');
         Route::put('{stockRequest}', [StockRequestController::class, 'update'])->middleware("permission:{$request},edit")->name('update');
         Route::patch('{stockRequest}/submit', [StockRequestController::class, 'submit'])->middleware("permission:{$request},edit")->name('submit');
+        Route::patch('{stockRequest}/approve', [StockRequestController::class, 'approve'])->middleware("permission:{$request},edit")->name('approve');
         Route::delete('{stockRequest}', [StockRequestController::class, 'destroy'])->name('destroy');
         Route::get('print/{stockRequest}', [StockRequestController::class, 'print'])->middleware("permission:{$request},view")->name('print');
     });

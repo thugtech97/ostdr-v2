@@ -185,6 +185,7 @@ class StockRequestController extends Controller
         return Inertia::render('StockRequests/Show', [
             'stockRequest' => $this->detail($stockRequest),
             'items' => $stockRequest->items()->get(['id', 'stock_code', 'description', 'uom', 'requested_qty', 'remarks']),
+            'canApprove' => $stockRequest->canBeDemoApproved() && $this->can($request, self::PAGE_REQUEST, 'edit'),
         ]);
     }
 
@@ -271,6 +272,29 @@ class StockRequestController extends Controller
         ]);
 
         return back()->with('success', "{$stockRequest->transaction_no} has been submitted for approval.");
+    }
+
+    /**
+     * Demo deployments only: approve a submitted request by hand, because WFS isn't connected.
+     */
+    public function approve(Request $request, StockRequest $stockRequest): RedirectResponse
+    {
+        abort_unless(config('app.demo_approval'), HttpResponse::HTTP_NOT_FOUND);
+        $this->ensureVisible($request, $stockRequest);
+
+        if (! $stockRequest->canBeDemoApproved()) {
+            return back()->with('error', 'Only a submitted request can be approved.');
+        }
+
+        $stockRequest->update([
+            'updated_by' => $request->user()->username,
+            'status' => StockRequest::STATUS_FULLY_APPROVED,
+            // WFS stores the approver's full name here.
+            'approved_by' => $request->user()->name,
+            'approved_at' => now(),
+        ]);
+
+        return back()->with('success', "{$stockRequest->transaction_no} has been approved.");
     }
 
     public function destroy(Request $request, StockRequest $stockRequest): RedirectResponse
@@ -381,6 +405,7 @@ class StockRequestController extends Controller
             'editable' => $row->isEditable(),
             'deletable' => $row->isDeletable(),
             'pending' => $row->isPending(),
+            'approvable' => $row->canBeDemoApproved(),
         ];
     }
 

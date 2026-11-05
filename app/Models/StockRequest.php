@@ -189,6 +189,15 @@ class StockRequest extends Model
         return strtolower((string) $this->status) === 'submitted';
     }
 
+    /**
+     * Temporary stand-in for WFS on demo deployments (DEMO_APPROVAL), where nothing else can
+     * approve a request. Remove it once WFS is integrated.
+     */
+    public function canBeDemoApproved(): bool
+    {
+        return (bool) config('app.demo_approval') && $this->isSubmitted();
+    }
+
     public function isPending(): bool
     {
         return strtolower((string) $this->status) === 'pending' && ! $this->isReceived;

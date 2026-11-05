@@ -1,0 +1,1 @@
+import{j as d}from"./app-BAR_YlW9.js";function s({className:r="",children:a,...e}){return d.jsx("select",{...e,className:"rounded-md border-gray-300 shadow-sm focus:border-brand-500 focus:ring-brand-500 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-100 "+r,children:a})}export{s as S};

@@ -1,7 +1,7 @@
 import Card from '@/Components/Card';
 import ConfirmDialog from '@/Components/ConfirmDialog';
 import IconButton from '@/Components/IconButton';
-import { EyeIcon, PencilIcon, PrinterIcon, SendIcon, TrashIcon } from '@/Components/Icons';
+import { CheckCircleIcon, EyeIcon, PencilIcon, PrinterIcon, SendIcon, TrashIcon } from '@/Components/Icons';
 import Pagination from '@/Components/Pagination';
 import RequestStatusBadge from '@/Components/RequestStatusBadge';
 import SecondaryButton from '@/Components/SecondaryButton';
@@ -45,10 +45,28 @@ export default function RequestList({ requests, filters, can, routeName, unsaved
             },
         };
 
-        action === 'submit'
-            ? router.patch(route('stockrequests.submit', row.id), {}, options)
-            : router.delete(route('stockrequests.destroy', row.id), options);
+        action === 'delete'
+            ? router.delete(route('stockrequests.destroy', row.id), options)
+            : router.patch(route(`stockrequests.${action}`, row.id), {}, options);
     };
+
+    const dialog = {
+        submit: {
+            title: 'Submit request?',
+            message: `Submit ${pending?.row.transaction_no} for approval? You will not be able to edit it afterwards.`,
+            confirmLabel: 'Submit',
+        },
+        approve: {
+            title: 'Mark as approved?',
+            message: `Mark ${pending?.row.transaction_no} as approved? It will go to the receiving department and can no longer be edited.`,
+            confirmLabel: 'Approve',
+        },
+        delete: {
+            title: 'Delete request?',
+            message: `Do you want to delete ${pending?.row.transaction_no || 'this request'}?`,
+            confirmLabel: 'Delete',
+        },
+    }[pending?.action ?? 'delete'];
 
     const headers = [
         { column: 'transaction_no', label: 'Transaction #' },
@@ -154,6 +172,11 @@ export default function RequestList({ requests, filters, can, routeName, unsaved
                                                     <SendIcon />
                                                 </IconButton>
                                             )}
+                                            {!unsaved && row.approvable && can.edit && (
+                                                <IconButton label="Mark as approved" tone="success" onClick={() => setPending({ action: 'approve', row })}>
+                                                    <CheckCircleIcon />
+                                                </IconButton>
+                                            )}
                                             {can.view && (
                                                 <IconButton label="View request" href={route('stockrequests.show', row.id)}>
                                                     <EyeIcon />
@@ -187,13 +210,9 @@ export default function RequestList({ requests, filters, can, routeName, unsaved
 
             <ConfirmDialog
                 show={pending !== null}
-                title={pending?.action === 'submit' ? 'Submit request?' : 'Delete request?'}
-                message={
-                    pending?.action === 'submit'
-                        ? `Submit ${pending?.row.transaction_no} for approval? You will not be able to edit it afterwards.`
-                        : `Do you want to delete ${pending?.row.transaction_no || 'this request'}?`
-                }
-                confirmLabel={pending?.action === 'submit' ? 'Submit' : 'Delete'}
+                title={dialog.title}
+                message={dialog.message}
+                confirmLabel={dialog.confirmLabel}
                 danger={pending?.action === 'delete'}
                 processing={processing}
                 onConfirm={confirmAction}

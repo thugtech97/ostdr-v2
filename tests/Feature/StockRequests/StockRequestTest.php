@@ -10,6 +10,7 @@ use App\Models\StockRequest;
 use App\Models\User;
 use App\Services\ProductCatalogue;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\DB;
 use Tests\Concerns\GrantsPermissions;
 use Tests\TestCase;
 
@@ -303,6 +304,66 @@ class StockRequestTest extends TestCase
         $this->assertSame('Submitted', $request->refresh()->status);
 
         $this->actingAs($this->requestor)->patch("/stockrequests/{$request->id}/submit")->assertSessionHas('error');
+    }
+
+    public function test_demo_approval_is_off_unless_enabled(): void
+    {
+        config(['app.demo_approval' => false]);
+        $request = $this->makeRequest(['status' => 'Submitted']);
+
+        $this->actingAs($this->requestor)->patch("/stockrequests/{$request->id}/approve")->assertNotFound();
+        $this->assertSame('Submitted', $request->refresh()->status);
+
+        $this->actingAs($this->requestor)->get("/stockrequests/view/{$request->id}")
+            ->assertInertia(fn ($page) => $page->where('canApprove', false));
+        $this->actingAs($this->requestor)->get('/stockrequests/dashboard')
+            ->assertInertia(fn ($page) => $page->where('requests.data.0.approvable', false));
+    }
+
+    public function test_demo_approval_approves_a_submitted_request_and_sends_it_to_receiving(): void
+    {
+        config(['app.demo_approval' => true]);
+        $request = $this->makeRequest(['status' => 'Submitted', 'origin' => 'MOTORPOOL']);
+
+        $this->actingAs($this->requestor)->get('/stockrequests/dashboard')
+            ->assertInertia(fn ($page) => $page->where('requests.data.0.approvable', true));
+        $this->actingAs($this->requestor)->get("/stockrequests/view/{$request->id}")
+            ->assertInertia(fn ($page) => $page->where('canApprove', true));
+
+        $this->actingAs($this->requestor)->patch("/stockrequests/{$request->id}/approve")
+            ->assertSessionHas('success', "{$request->transaction_no} has been approved.");
+
+        $request->refresh();
+        $this->assertSame('FULLY APPROVED', $request->status);
+        $this->assertSame($this->requestor->name, $request->approved_by);
+        $this->assertNotNull($request->approved_at);
+        $this->assertSame($this->requestor->username, $request->updated_by);
+        $this->assertFalse($request->isEditable());
+
+        $receiver = $this->requestorUser('MOTORPOOL', ['Manage Receiving']);
+        $this->actingAs($receiver)->get('/mcds/dashboard')
+            ->assertInertia(fn ($page) => $page->where('requests.data.0.transaction_no', $request->transaction_no));
+    }
+
+    public function test_demo_approval_only_applies_to_submitted_requests_the_user_can_see(): void
+    {
+        config(['app.demo_approval' => true]);
+
+        $pending = $this->makeRequest(['status' => 'Pending']);
+        $this->actingAs($this->requestor)->patch("/stockrequests/{$pending->id}/approve")
+            ->assertSessionHas('error', 'Only a submitted request can be approved.');
+        $this->assertSame('Pending', $pending->refresh()->status);
+        $this->assertNull($pending->approved_by);
+
+        $otherDept = $this->makeRequest(['status' => 'Submitted', 'dept' => 'MOTORPOOL', 'created_by' => 'someone-else']);
+        $this->actingAs($this->requestor)->patch("/stockrequests/{$otherDept->id}/approve")->assertNotFound();
+        $this->assertSame('Submitted', $otherDept->refresh()->status);
+
+        $noEditRights = $this->requestorUser('ICT', ['Stock Request']);
+        DB::table('users_permissions')->where('user_id', $noEditRights->id)->where('action', 'edit')->delete();
+        $submitted = $this->makeRequest(['status' => 'Submitted']);
+        $this->actingAs($noEditRights)->patch("/stockrequests/{$submitted->id}/approve")->assertForbidden();
+        $this->assertSame('Submitted', $submitted->refresh()->status);
     }
 
     public function test_requests_without_items_can_not_be_submitted(): void

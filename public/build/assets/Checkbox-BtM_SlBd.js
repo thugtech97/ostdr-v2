@@ -1,0 +1,1 @@
+import{j as o}from"./app-BAR_YlW9.js";function t({className:r="",...a}){return o.jsx("input",{...a,type:"checkbox",className:"rounded border-gray-300 text-brand-900 shadow-sm focus:ring-brand-500 dark:border-gray-600 dark:bg-gray-900 dark:text-brand-500 dark:focus:ring-offset-gray-900 "+r})}export{t as C};

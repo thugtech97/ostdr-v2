@@ -68,6 +68,19 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | Demo Approval
+    |--------------------------------------------------------------------------
+    |
+    | Lets users mark a submitted request as approved by hand, for demo
+    | deployments with no WFS connection. Keep this off anywhere real: it lets
+    | a requestor approve their own requests. Remove it once WFS is integrated.
+    |
+    */
+
+    'demo_approval' => (bool) env('DEMO_APPROVAL', false),
+
+    /*
+    |--------------------------------------------------------------------------
     | Application Timezone
     |--------------------------------------------------------------------------
     |

@@ -1,9 +1,11 @@
 import Card from '@/Components/Card';
-import { PrinterIcon } from '@/Components/Icons';
+import ConfirmDialog from '@/Components/ConfirmDialog';
+import { CheckCircleIcon, PrinterIcon } from '@/Components/Icons';
 import PageHeader from '@/Components/PageHeader';
 import RequestStatusBadge from '@/Components/RequestStatusBadge';
 import AuthenticatedLayout from '@/Layouts/AuthenticatedLayout';
-import { Head, Link } from '@inertiajs/react';
+import { Head, Link, router } from '@inertiajs/react';
+import { useState } from 'react';
 
 function Field({ label, value, className = '' }) {
     return (
@@ -14,7 +16,20 @@ function Field({ label, value, className = '' }) {
     );
 }
 
-export default function Show({ stockRequest, items }) {
+export default function Show({ stockRequest, items, canApprove }) {
+    const [confirmApprove, setConfirmApprove] = useState(false);
+    const [processing, setProcessing] = useState(false);
+
+    const approve = () =>
+        router.patch(route('stockrequests.approve', stockRequest.id), {}, {
+            preserveScroll: true,
+            onStart: () => setProcessing(true),
+            onFinish: () => {
+                setProcessing(false);
+                setConfirmApprove(false);
+            },
+        });
+
     return (
         <AuthenticatedLayout
             header={
@@ -27,18 +42,40 @@ export default function Show({ stockRequest, items }) {
                     title={stockRequest.transaction_no}
                     subtitle={<RequestStatusBadge badge={stockRequest.badge} />}
                     actions={
-                        <a
-                            href={route('stockrequests.print', stockRequest.id)}
-                            className="inline-flex items-center gap-1.5 rounded-md bg-brand-900 px-4 py-2 text-xs font-semibold uppercase tracking-widest text-white hover:bg-brand-700 dark:bg-brand-600 dark:hover:bg-brand-500"
-                        >
-                            <PrinterIcon />
-                            Print
-                        </a>
+                        <div className="flex items-center gap-2">
+                            {canApprove && (
+                                <button
+                                    type="button"
+                                    onClick={() => setConfirmApprove(true)}
+                                    className="inline-flex items-center gap-1.5 rounded-md bg-emerald-600 px-4 py-2 text-xs font-semibold uppercase tracking-widest text-white hover:bg-emerald-500"
+                                >
+                                    <CheckCircleIcon />
+                                    Mark as Approved
+                                </button>
+                            )}
+                            <a
+                                href={route('stockrequests.print', stockRequest.id)}
+                                className="inline-flex items-center gap-1.5 rounded-md bg-brand-900 px-4 py-2 text-xs font-semibold uppercase tracking-widest text-white hover:bg-brand-700 dark:bg-brand-600 dark:hover:bg-brand-500"
+                            >
+                                <PrinterIcon />
+                                Print
+                            </a>
+                        </div>
                     }
                 />
             }
         >
             <Head title={`View ${stockRequest.transaction_no}`} />
+
+            <ConfirmDialog
+                show={confirmApprove}
+                title="Mark as approved?"
+                message={`Mark ${stockRequest.transaction_no} as approved? It will go to the receiving department and can no longer be edited.`}
+                confirmLabel="Approve"
+                processing={processing}
+                onConfirm={approve}
+                onClose={() => !processing && setConfirmApprove(false)}
+            />
 
             <div className="space-y-6 p-4 sm:p-6 lg:p-8">
                 <Card className="p-6">
